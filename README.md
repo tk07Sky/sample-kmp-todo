@@ -98,14 +98,23 @@ Todo アプリとしては保存されないと意味がないため、Web だ�
 
 ### 1. ビルドツール（mise）
 
-JDK と Gradle は [mise](https://mise.jdx.dev/) で固定しています。
+JDK・Gradle・Node は [mise](https://mise.jdx.dev/) で固定しています。
 
 ```sh
 mise trust     # 初回のみ。.mise.toml を信頼する
-mise install   # JDK 21 と Gradle 9.7.1 を導入する
+mise install   # 下記のバージョンを導入する
 ```
 
-導入されるバージョンは `.mise.toml` に記載しています。
+| ツール | バージョン | 用途 |
+| --- | --- | --- |
+| Java (Temurin) | 21.0.12+101.0.LTS | Kotlin 2.4 / AGP 9 の要件は JDK 17 以上 |
+| Gradle | 9.7.1 | AGP 9 の要件は Gradle 9.1 以上 |
+| Node | 26.3.0 | `web/`（TypeScript / React 版）のビルド |
+
+`.mise.toml` では前方一致ではなく完全一致でバージョンを指定しています。
+`temurin-21` のような書き方だとその時点の最新 21 系に解決されてしまい、
+環境や時期によってビルドに使われる JDK が変わるためです。
+
 プロジェクトディレクトリに入ると自動で切り替わります。
 
 ### 2. Android SDK
