@@ -1,0 +1,220 @@
+/* Compose 版と同じ緑系のパレットを CSS 変数として持つ。
+   canvas ではなく DOM なので、配色もレイアウトもここで調整できる。 */
+:root {
+    --surface: #fbfdf8;
+    --surface-container: #eff2ec;
+    --on-surface: #191c1a;
+    --on-surface-variant: #404942;
+    --primary: #2e6b4f;
+    --on-primary: #ffffff;
+    --secondary-container: #d0e8d6;
+    --on-secondary-container: #0b1f14;
+    --outline: #707974;
+    --outline-variant: #c0c9c0;
+
+    color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --surface: #111412;
+        --surface-container: #1d201e;
+        --on-surface: #e1e3de;
+        --on-surface-variant: #c0c9c0;
+        --primary: #99d5b3;
+        --on-primary: #003825;
+        --secondary-container: #374b3e;
+        --on-secondary-container: #d0e8d6;
+        --outline: #8a938c;
+        --outline-variant: #404942;
+    }
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    background: var(--surface);
+    color: var(--on-surface);
+    font-family: system-ui, -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif;
+}
+
+.app {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    max-width: 720px;
+    margin: 0 auto;
+}
+
+.app-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 16px;
+}
+
+.app-header h1 {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 400;
+}
+
+.counts {
+    margin: 4px 0 0;
+    font-size: 0.8125rem;
+    color: var(--on-surface-variant);
+}
+
+.filters {
+    display: flex;
+    gap: 8px;
+    padding: 0 16px 12px;
+    border-bottom: 1px solid var(--outline-variant);
+}
+
+.chip {
+    padding: 6px 16px;
+    border: 1px solid var(--outline);
+    border-radius: 8px;
+    background: transparent;
+    color: var(--on-surface);
+    font: inherit;
+    font-size: 0.875rem;
+    cursor: pointer;
+}
+
+.chip-selected {
+    background: var(--secondary-container);
+    color: var(--on-secondary-container);
+    border-color: transparent;
+}
+
+.text-button {
+    border: none;
+    background: transparent;
+    color: var(--primary);
+    font: inherit;
+    font-size: 0.875rem;
+    padding: 8px;
+    cursor: pointer;
+}
+
+.text-button:disabled {
+    color: var(--on-surface-variant);
+    opacity: 0.38;
+    cursor: default;
+}
+
+.list-area {
+    flex: 1;
+}
+
+.empty {
+    padding: 64px 32px;
+    text-align: center;
+    color: var(--on-surface-variant);
+    font-size: 0.875rem;
+}
+
+.todo-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.todo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--outline-variant);
+}
+
+.todo input[type='checkbox'] {
+    width: 20px;
+    height: 20px;
+    accent-color: var(--primary);
+    flex: none;
+}
+
+.todo-body {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: 1;
+    min-width: 0;
+}
+
+.todo-title {
+    /* DOM なのでテキスト選択もブラウザ内検索も効く */
+    overflow-wrap: anywhere;
+}
+
+.todo-done .todo-title {
+    text-decoration: line-through;
+    color: var(--on-surface-variant);
+}
+
+.todo-notes,
+.todo-date {
+    font-size: 0.75rem;
+    color: var(--on-surface-variant);
+}
+
+.icon-button {
+    border: none;
+    background: transparent;
+    color: var(--on-surface-variant);
+    font-size: 1rem;
+    padding: 8px;
+    cursor: pointer;
+    border-radius: 50%;
+    flex: none;
+}
+
+.icon-button:hover {
+    background: var(--surface-container);
+}
+
+.add-form {
+    position: sticky;
+    bottom: 0;
+    display: flex;
+    gap: 8px;
+    padding: 12px 16px;
+    background: var(--surface-container);
+}
+
+.add-form input {
+    flex: 1;
+    padding: 10px 12px;
+    border: 1px solid var(--outline);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--on-surface);
+    font: inherit;
+}
+
+.add-form input:focus {
+    outline: 2px solid var(--primary);
+    outline-offset: -2px;
+}
+
+.add-button {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 8px;
+    background: var(--primary);
+    color: var(--on-primary);
+    font: inherit;
+    cursor: pointer;
+}
+
+.add-button:disabled {
+    opacity: 0.38;
+    cursor: default;
+}

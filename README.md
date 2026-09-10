@@ -19,13 +19,19 @@ Android / iOS / Web (Wasm) の 3 プラットフォームで、ドメイン・�
 todo-kmp/
 ├── shared/          Kotlin Multiplatform ライブラリ（アプリの中身はすべてここ）
 │   └── src/
-│       ├── commonMain/     ドメイン・ViewModel・Compose UI・SQLDelight スキーマ
+│       ├── commonMain/     ドメイン・ViewModel・SQLDelight スキーマ（Compose 非依存）
+│       ├── composeMain/    Compose UI（Android / iOS / wasmJs で共有）
+│       ├── webMain/        localStorage 実装（js / wasmJs で共有）
 │       ├── androidMain/    Android 用の SQLite ドライバと setContent
 │       ├── iosMain/        iOS 用の SQLite ドライバと UIViewController
-│       └── wasmJsMain/     Web 用の localStorage 実装とエントリポイント
+│       ├── wasmJsMain/     Compose 版 Web のエントリポイント
+│       └── jsMain/         TypeScript 版 Web 向けの facade（TodoStore）
 ├── androidApp/      Android アプリの器（Activity と Manifest のみ）
-└── iosApp/          Xcode プロジェクト（SwiftUI から Compose を埋め込む）
+├── iosApp/          Xcode プロジェクト（SwiftUI から Compose を埋め込む）
+└── web/             TypeScript / React 版の Web アプリ（Vite）
 ```
+
+Web は 2 通りの実装を並行して置いています。詳細は「Web の 2 つの実装」を参照してください。
 
 ### なぜ `shared` と `androidApp` を分けているか
 
@@ -46,7 +52,38 @@ AGP 9.0 以降、`com.android.application` プラグインは
 | 状態管理 | androidx.lifecycle ViewModel (KMP 版) | `viewModel { }` が共通コードで使える |
 | DB (Android/iOS) | SQLDelight 2.3.2 | 型安全な SQL、Flow で監視できる |
 | DB (Web) | localStorage + kotlinx.serialization | 後述の理由により SQLDelight を使っていない |
+| Web の UI | Compose 版と TypeScript / React 版の 2 通り | 「Web の 2 つの実装」を参照 |
 | DI | 手動 DI | 依存が少ないため、ライブラリを入れずコンストラクタ渡しで完結させている |
+
+## Web の 2 つの実装
+
+Web は 2 通りの実装を並行して置いており、どちらも同じ機能・同じ配色です。
+共有しているのはドメイン・リポジトリ・永続化で、違うのは UI の作り方だけです。
+
+| | Compose Multiplatform 版 | TypeScript / React 版 |
+| --- | --- | --- |
+| 場所 | `shared/src/wasmJsMain` | `web/` |
+| UI の言語 | Kotlin（Android / iOS と共通） | TypeScript |
+| 描画 | canvas | DOM |
+| CSS | 当てられない | 当てられる |
+| テキスト選択・ブラウザ内検索 | 不可 | 可 |
+| スクリーンリーダー | 弱い | 通常の HTML と同じ |
+| 転送サイズ (gzip) | 約 4,545 KB | 約 175 KB |
+| UI の保守 | モバイルと 1 つ | Web 用に別途必要 |
+
+Compose 版は canvas に描画するため、UI コードをモバイルとそのまま共有できる代わりに、
+DOM が存在しないことに由来する制約（CSS・テキスト選択・アクセシビリティ）と
+バンドルサイズを引き受けることになります。
+
+TypeScript 版では Kotlin 側は UI を持たず、`shared/src/jsMain` の `TodoStore` だけを
+JS ライブラリとして公開しています。`@JsExport` は suspend 関数・`Flow`・`Long` を
+そのまま扱えないため、この facade で以下のように変換しています。
+
+- Flow の購読 → コールバック（戻り値の関数で解除）
+- suspend 関数 → `Promise`
+- `Long` の ID → `string`（JS の `number` では 53bit を超える値を表現できないため）
+
+Kotlin から `.d.mts` を生成しているので、TypeScript 側は型付きで扱えます。
 
 ### Web だけ SQLDelight を使っていない理由
 
@@ -111,7 +148,7 @@ Compose Multiplatform 1.12 は Intel シミュレータ (iosX64) 向けを配信
 シミュレータで動かす場合は、Xcode の Settings > Components から iOS のシミュレータランタイムを
 あらかじめ入れておいてください（未導入だとシミュレータ向けにビルドできません）。
 
-### Web (Wasm)
+### Web（Compose Multiplatform 版）
 
 ```sh
 ./gradlew :shared:wasmJsBrowserDevelopmentRun    # 開発サーバを起動する
@@ -119,6 +156,21 @@ Compose Multiplatform 1.12 は Intel シミュレータ (iosX64) 向けを配信
 ```
 
 Wasm GC に対応したブラウザが必要です（Chrome 119 以降、Firefox 120 以降、Safari 18.4 以降）。
+
+### Web（TypeScript / React 版）
+
+Kotlin 側のライブラリを先にビルドしてから、npm の依存を入れます。
+
+```sh
+./gradlew :shared:jsBrowserProductionLibraryDistribution   # Kotlin のロジックを JS ライブラリとして出力
+cd web && npm install                                      # 初回のみ
+npm run dev                                                # 開発サーバ (http://localhost:5173)
+npm run build                                              # 本番ビルド (web/dist)
+```
+
+`web/package.json` は Kotlin の出力を `file:../shared/build/dist/js/productionLibrary` として参照しています。
+Kotlin 側の公開 API（`shared/src/jsMain` の `TodoStore`）を変えたときは、
+Gradle のビルドをやり直してから `npm install` し直してください。
 
 ## テスト
 
