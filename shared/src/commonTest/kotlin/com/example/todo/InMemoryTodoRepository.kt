@@ -1,10 +1,12 @@
 package com.example.todo
 
 import com.example.todo.data.TodoRepository
+import com.example.todo.domain.Priority
 import com.example.todo.domain.Todo
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
 
 /**
  * テスト用のメモリ実装。
@@ -20,6 +22,9 @@ class InMemoryTodoRepository(initial: List<Todo> = emptyList()) : TodoRepository
 
     override fun observeAll(): Flow<List<Todo>> = state.asStateFlow()
 
+    override fun observeAllTags(): Flow<List<String>> =
+        state.map { todos -> todos.flatMap { it.tags }.distinct().sorted() }
+
     override suspend fun add(title: String, notes: String) = mutate { current ->
         current + Todo(
             id = nextId++,
@@ -30,8 +35,27 @@ class InMemoryTodoRepository(initial: List<Todo> = emptyList()) : TodoRepository
         )
     }
 
-    override suspend fun updateContent(id: Long, title: String, notes: String) = mutate { current ->
-        current.map { if (it.id == id) it.copy(title = title, notes = notes) else it }
+    override suspend fun updateDetails(
+        id: Long,
+        title: String,
+        notes: String,
+        dueAtEpochMillis: Long?,
+        priority: Priority,
+        tags: List<String>,
+    ) = mutate { current ->
+        current.map {
+            if (it.id == id) {
+                it.copy(
+                    title = title,
+                    notes = notes,
+                    dueAtEpochMillis = dueAtEpochMillis,
+                    priority = priority,
+                    tags = tags,
+                )
+            } else {
+                it
+            }
+        }
     }
 
     override suspend fun setDone(id: Long, isDone: Boolean) = mutate { current ->

@@ -1,6 +1,7 @@
 package com.example.todo.ui
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -14,9 +15,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
@@ -38,23 +39,28 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.todo.domain.Priority
 import com.example.todo.domain.Todo
 import com.example.todo.domain.TodoFilter
+import com.example.todo.domain.TodoSort
+import com.example.todo.data.currentTimeMillis
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TodoScreen(
+fun TodoListScreen(
     viewModel: TodoViewModel,
+    onOpenDetail: (Long) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    // 編集ダイアログの対象。null なら閉じている。
-    var editing by remember { mutableStateOf<Todo?>(null) }
+    // 「期限切れ」の判定に使う。コンポーズのたびに変わると描画が安定しないため画面表示中は固定する。
+    val now = remember { currentTimeMillis() }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -88,6 +94,10 @@ fun TodoScreen(
                 selected = state.filter,
                 onSelect = viewModel::setFilter,
             )
+            SortRow(
+                selected = state.sort,
+                onSelect = viewModel::setSort,
+            )
             HorizontalDivider()
 
             if (state.todos.isEmpty()) {
@@ -101,25 +111,15 @@ fun TodoScreen(
                         TodoRow(
                             todo = todo,
                             onToggle = { viewModel.setDone(todo.id, it) },
-                            onEdit = { editing = todo },
+                            onOpen = { onOpenDetail(todo.id) },
                             onDelete = { viewModel.delete(todo.id) },
+                            now = now,
                         )
                         HorizontalDivider()
                     }
                 }
             }
         }
-    }
-
-    editing?.let { target ->
-        EditTodoDialog(
-            todo = target,
-            onDismiss = { editing = null },
-            onConfirm = { title, notes ->
-                viewModel.updateContent(target.id, title, notes)
-                editing = null
-            },
-        )
     }
 }
 
@@ -143,16 +143,46 @@ private fun FilterRow(
 }
 
 @Composable
+private fun SortRow(
+    selected: TodoSort,
+    onSelect: (TodoSort) -> Unit,
+) {
+    // 幅の狭い端末でもチップが切れないよう横スクロールさせる
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = "並び順",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        TodoSort.entries.forEach { sort ->
+            FilterChip(
+                selected = sort == selected,
+                onClick = { onSelect(sort) },
+                label = { Text(sort.label) },
+            )
+        }
+    }
+}
+
+@Composable
 private fun TodoRow(
     todo: Todo,
     onToggle: (Boolean) -> Unit,
-    onEdit: () -> Unit,
+    onOpen: () -> Unit,
     onDelete: () -> Unit,
+    now: Long,
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onEdit)
+            .clickable(onClick = onOpen)
             .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -180,8 +210,9 @@ private fun TodoRow(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
+            TodoBadges(todo, now)
             Text(
-                text = formatCreatedAt(todo.createdAtEpochMillis),
+                text = formatDateTime(todo.createdAtEpochMillis),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -189,6 +220,72 @@ private fun TodoRow(
         IconButton(onClick = onDelete) {
             Icon(AppIcons.Delete, contentDescription = "「${todo.title}」を削除")
         }
+    }
+}
+
+/** 期限・優先度・タグを 1 行にまとめて出す。どれも無ければ何も描かない。 */
+@Composable
+private fun TodoBadges(todo: Todo, now: Long) {
+    val hasBadge = todo.dueAtEpochMillis != null ||
+        todo.priority != Priority.None ||
+        todo.tags.isNotEmpty()
+    if (!hasBadge) return
+
+    Row(
+        modifier = Modifier.padding(top = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        todo.dueAtEpochMillis?.let { due ->
+            // 期限切れは色を変えて気づけるようにする。完了済みは急かす必要がないので通常色。
+            val overdue = !todo.isDone && due < now
+            Badge(
+                text = "期限 ${formatDateTime(due)}",
+                container = if (overdue) {
+                    MaterialTheme.colorScheme.errorContainer
+                } else {
+                    MaterialTheme.colorScheme.surfaceVariant
+                },
+                content = if (overdue) {
+                    MaterialTheme.colorScheme.onErrorContainer
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+            )
+        }
+        if (todo.priority != Priority.None) {
+            Badge(
+                text = todo.priority.label,
+                container = MaterialTheme.colorScheme.tertiaryContainer,
+                content = MaterialTheme.colorScheme.onTertiaryContainer,
+            )
+        }
+        todo.tags.forEach { tag ->
+            Badge(
+                text = "# $tag",
+                container = MaterialTheme.colorScheme.secondaryContainer,
+                content = MaterialTheme.colorScheme.onSecondaryContainer,
+            )
+        }
+    }
+}
+
+@Composable
+private fun Badge(
+    text: String,
+    container: Color,
+    content: Color,
+) {
+    Surface(
+        color = container,
+        contentColor = content,
+        shape = MaterialTheme.shapes.small,
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelSmall,
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+        )
     }
 }
 
@@ -247,54 +344,16 @@ private fun AddTodoBar(onSubmit: (String) -> Boolean) {
     }
 }
 
-@Composable
-private fun EditTodoDialog(
-    todo: Todo,
-    onDismiss: () -> Unit,
-    onConfirm: (title: String, notes: String) -> Unit,
-) {
-    var title by remember(todo.id) { mutableStateOf(todo.title) }
-    var notes by remember(todo.id) { mutableStateOf(todo.notes) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Todo を編集") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(
-                    value = title,
-                    onValueChange = { title = it },
-                    label = { Text("タイトル") },
-                    singleLine = true,
-                    isError = title.isBlank(),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                OutlinedTextField(
-                    value = notes,
-                    onValueChange = { notes = it },
-                    label = { Text("メモ（任意）") },
-                    minLines = 3,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = { onConfirm(title, notes) },
-                enabled = title.isNotBlank(),
-            ) {
-                Text("保存")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("キャンセル") }
-        },
-    )
-}
-
 private val TodoFilter.label: String
     get() = when (this) {
         TodoFilter.All -> "すべて"
         TodoFilter.Active -> "未完了"
         TodoFilter.Completed -> "完了"
+    }
+
+private val TodoSort.label: String
+    get() = when (this) {
+        TodoSort.CreatedDesc -> "作成順"
+        TodoSort.DueAsc -> "期限順"
+        TodoSort.PriorityDesc -> "優先度順"
     }

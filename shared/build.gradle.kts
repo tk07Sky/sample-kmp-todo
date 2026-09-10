@@ -121,6 +121,13 @@ kotlin {
             implementation(kotlin("test"))
             implementation(libs.kotlinx.coroutines.test)
         }
+
+        // SQLDelight のマイグレーションは実際に SQLite 上で動かさないと検証できないため、
+        // JVM で動くホストテストにだけドライバを入れている。
+        getByName("androidHostTest").dependencies {
+            implementation(kotlin("test"))
+            implementation(libs.sqldelight.sqlite.driver)
+        }
     }
 }
 

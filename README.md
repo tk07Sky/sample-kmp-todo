@@ -5,13 +5,34 @@ Android / iOS / Web (Wasm) の 3 プラットフォームで、ドメイン・�
 
 ## 機能
 
-- Todo の追加・編集・削除
+- Todo の追加・削除
+- 詳細画面での編集（タイトル・メモ・期限・優先度・タグ）
 - 完了 / 未完了の切り替え
 - 「すべて / 未完了 / 完了」での絞り込み
+- 「作成順 / 期限順 / 優先度順」での並べ替え
+- 一覧での期限・優先度・タグの表示（期限切れは色を変える）
 - 完了済みの一括削除
 - 未完了件数・全件数の表示
 - データの永続化（アプリを閉じても残る）
 - ダークモード対応
+
+### 詳細画面
+
+一覧から 1 件を開くと、タイトル・メモに加えて期限・優先度・タグを編集できます。
+
+| 項目 | 内容 |
+| --- | --- |
+| 期限 | 日時まで指定する。未設定も可 |
+| 優先度 | 高 / 中 / 低 / なし。既定はなし |
+| タグ | 1 件に複数付けられる。自由入力で、他の Todo で使ったタグは候補として出る |
+
+並べ替えはどの順でも「未完了が先」で、完了済みが未完了より上に来ることはありません。
+期限順では期限なしが、優先度順では優先度なしが最後に回ります。
+決着がつかない場合は作成が新しい順です。
+
+この規則は Kotlin 側（`shared/src/commonMain` の `domain/Todo.kt`）と
+TypeScript 側（`web/src/todoStore.ts`）にそれぞれ実装があります。
+Web の 2 実装で並びがずれないよう、変更するときは両方を直してください。
 
 ## モジュール構成
 
@@ -19,7 +40,7 @@ Android / iOS / Web (Wasm) の 3 プラットフォームで、ドメイン・�
 todo-kmp/
 ├── shared/          Kotlin Multiplatform ライブラリ（アプリの中身はすべてここ）
 │   └── src/
-│       ├── commonMain/     ドメイン・ViewModel・SQLDelight スキーマ（Compose 非依存）
+│       ├── commonMain/     ドメイン・ViewModel・SQLDelight スキーマとマイグレーション（Compose 非依存）
 │       ├── composeMain/    Compose UI（Android / iOS / wasmJs で共有）
 │       ├── webMain/        localStorage 実装（js / wasmJs で共有）
 │       ├── androidMain/    Android 用の SQLite ドライバと setContent
@@ -54,6 +75,7 @@ AGP 9.0 以降、`com.android.application` プラグインは
 | DB (Web) | localStorage + kotlinx.serialization | 後述の理由により SQLDelight を使っていない |
 | Web の UI | Compose 版と TypeScript / React 版の 2 通り | 「Web の 2 つの実装」を参照 |
 | DI | 手動 DI | 依存が少ないため、ライブラリを入れずコンストラクタ渡しで完結させている |
+| 画面遷移 | 自前 | 一覧と詳細の 2 枚のみ。Compose 版は状態、TypeScript 版は History API |
 
 ## Web の 2 つの実装
 
@@ -68,12 +90,20 @@ Web は 2 通りの実装を並行して置いており、どちらも同じ機�
 | CSS | 当てられない | 当てられる |
 | テキスト選択・ブラウザ内検索 | 不可 | 可 |
 | スクリーンリーダー | 弱い | 通常の HTML と同じ |
-| 転送サイズ (gzip) | 約 4,545 KB | 約 179 KB |
+| 画面遷移 | アプリ内の状態（URL は変わらない） | URL（`/todo/<id>`）・ブラウザの戻るが効く |
+| 期限の入力 | テキスト（`2026-09-30 18:00` 形式） | `<input type="datetime-local">` |
+| 転送サイズ (gzip) | 約 4,545 KB | 約 183 KB |
 | UI の保守 | モバイルと 1 つ | Web 用に別途必要 |
 
 Compose 版は canvas に描画するため、UI コードをモバイルとそのまま共有できる代わりに、
 DOM が存在しないことに由来する制約（CSS・テキスト選択・アクセシビリティ）と
 バンドルサイズを引き受けることになります。
+
+詳細画面への遷移もこの違いが出ます。Compose 版は canvas なので URL を持てず、
+どちらの画面を出しているかをアプリ内の状態として持っています。
+TypeScript 版は History API を直接使い、`/todo/<id>` を URL として扱うため、
+リロード・ブックマーク・ブラウザの戻るがそのまま動きます。
+画面が 2 枚しかないので、どちらもナビゲーションライブラリは入れていません。
 
 TypeScript 版では Kotlin 側は UI を持たず、`shared/src/jsMain` の `TodoStore` だけを
 JS ライブラリとして公開しています。`@JsExport` は suspend 関数・`Flow`・`Long` を
@@ -84,6 +114,19 @@ JS ライブラリとして公開しています。`@JsExport` は suspend 関�
 - `Long` の ID → `string`（JS の `number` では 53bit を超える値を表現できないため）
 
 Kotlin から `.d.mts` を生成しているので、TypeScript 側は型付きで扱えます。
+
+### DB のスキーマを変えるとき
+
+`shared/src/commonMain/sqldelight/com/example/todo/db/` に、
+最新のスキーマ（`Todo.sq`）とマイグレーション（`migrations/*.sqm`）を置いています。
+`.sqm` はファイル名がバージョン番号で、`1.sqm` は v1 の DB を v2 に上げるものです。
+
+列やテーブルを足すときは、`Todo.sq` を直すだけでなく `.sqm` も足してください。
+`Todo.sq` だけを直すと新規インストールでは動きますが、
+すでにアプリを入れている環境では列が無いまま起動して落ちます。
+
+両者が食い違っていないかは `TodoDatabaseMigrationTest` が確認します
+（新規作成した DB と、v1 から migrate した DB の列を突き合わせています）。
 
 ### Web だけ SQLDelight を使っていない理由
 
@@ -181,14 +224,21 @@ npm run build                                              # 本番ビルド (we
 Kotlin 側の公開 API（`shared/src/jsMain` の `TodoStore`）を変えたときは、
 Gradle のビルドをやり直してから `npm install` し直してください。
 
+詳細画面を `/todo/<id>` という URL で持っているため、配信する側で
+「どのパスでも `index.html` を返す」設定が要ります（いわゆる SPA フォールバック）。
+`npm run dev` と `npm run preview` は Vite が既定で面倒を見てくれるので、
+そのままで動きます。`dist` を別のサーバーに置くときだけ設定してください。
+
 ## テスト
 
 ```sh
 ./gradlew :shared:testAndroidHostTest
 ```
 
-`shared/src/commonTest` に、ViewModel の状態遷移と絞り込みロジックのテストを置いています。
-テスト用のリポジトリ実装（`InMemoryTodoRepository`）は SQLDelight 実装と同じ並び順を再現しています。
+- `shared/src/commonTest` … ViewModel の状態遷移、絞り込み・並べ替え、タグの正規化。
+  テスト用のリポジトリ実装（`InMemoryTodoRepository`）は SQLDelight 実装と同じ並び順を再現しています。
+- `shared/src/androidHostTest` … DB のマイグレーション。
+  実際に SQLite 上で v1 の DB を作って migrate するため、JVM で動くこちらに置いています。
 
 共通テストは JVM 上で実行する `testAndroidHostTest` を日常的に使う想定です。
 `./gradlew :shared:allTests` はこれに加えて iOS とブラウザでも実行するため、

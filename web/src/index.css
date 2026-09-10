@@ -11,6 +11,9 @@
     --on-secondary-container: #0b1f14;
     --outline: #707974;
     --outline-variant: #c0c9c0;
+    --error: #b3261e;
+    --error-container: #f9dedc;
+    --on-error-container: #410e0b;
 
     color-scheme: light dark;
 }
@@ -27,6 +30,9 @@
         --on-secondary-container: #d0e8d6;
         --outline: #8a938c;
         --outline-variant: #404942;
+        --error: #f2b8b5;
+        --error-container: #8c1d18;
+        --on-error-container: #f9dedc;
     }
 }
 
@@ -219,43 +225,106 @@ body {
     cursor: default;
 }
 
-/* 編集ダイアログ。表示・非表示と背景の暗転は <dialog> の機能に任せ、
-   ここでは見た目だけを整える。 */
-.edit-dialog {
-    width: min(440px, calc(100vw - 32px));
-    padding: 0;
-    border: none;
-    border-radius: 16px;
+.sorts {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 16px 12px;
+    border-bottom: 1px solid var(--outline-variant);
+    overflow-x: auto;
+}
+
+.sorts-label {
+    font-size: 0.75rem;
+    color: var(--on-surface-variant);
+    flex: none;
+}
+
+.sorts .chip {
+    flex: none;
+}
+
+/* 一覧の行に出す期限・優先度・タグ */
+.badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 2px 0;
+}
+
+.badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 1px 6px;
+    border-radius: 6px;
+    font-size: 0.6875rem;
     background: var(--surface-container);
-    color: var(--on-surface);
+    color: var(--on-surface-variant);
 }
 
-.edit-dialog::backdrop {
-    background: rgb(0 0 0 / 0.4);
+.badge-priority {
+    background: var(--secondary-container);
+    color: var(--on-secondary-container);
 }
 
-.edit-form {
+.badge-tag {
+    background: var(--secondary-container);
+    color: var(--on-secondary-container);
+}
+
+/* 期限切れは色で気づけるようにする。色だけに頼らないよう読み上げ用の文言も添えている。 */
+.badge-overdue {
+    background: var(--error-container);
+    color: var(--on-error-container);
+}
+
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
+
+/* 詳細ページ ------------------------------------------------------- */
+
+.detail-heading {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.detail-form {
     display: flex;
     flex-direction: column;
-    gap: 16px;
-    padding: 24px;
-}
-
-.edit-form h2 {
-    margin: 0;
-    font-size: 1.25rem;
-    font-weight: 400;
+    gap: 20px;
+    padding: 8px 16px 32px;
 }
 
 .field {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 6px;
+    border: none;
+    margin: 0;
+    padding: 0;
+    min-width: 0;
 }
 
 .field-label {
     font-size: 0.75rem;
     color: var(--on-surface-variant);
+    padding: 0;
+}
+
+.field-hint {
+    font-size: 0.75rem;
+    color: var(--on-surface-variant);
+    margin: 0;
 }
 
 .field input,
@@ -267,6 +336,7 @@ body {
     color: var(--on-surface);
     font: inherit;
     resize: vertical;
+    width: 100%;
 }
 
 .field input:focus,
@@ -277,17 +347,60 @@ body {
 
 /* タイトルは必須。空のあいだは枠でも分かるようにする。 */
 .field input[aria-invalid='true'] {
-    border-color: #b3261e;
+    border-color: var(--error);
 }
 
-@media (prefers-color-scheme: dark) {
-    .field input[aria-invalid='true'] {
-        border-color: #f2b8b5;
-    }
+.chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
 }
 
-.dialog-actions {
+.tag-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.tag-list .badge {
+    padding: 4px 6px 4px 10px;
+    font-size: 0.8125rem;
+}
+
+.tag-remove {
+    border: none;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    font-size: 0.75rem;
+    padding: 0 2px;
+    cursor: pointer;
+    border-radius: 50%;
+}
+
+.tag-input {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.tag-input input {
+    flex: 1;
+    min-width: 0;
+}
+
+/* 入力欄が伸びてもボタンが潰れて折り返されないようにする */
+.tag-input button {
+    flex: none;
+    white-space: nowrap;
+}
+
+.detail-actions {
     display: flex;
     justify-content: flex-end;
+    align-items: center;
     gap: 8px;
 }

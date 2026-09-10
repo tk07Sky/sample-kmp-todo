@@ -1,25 +1,53 @@
 -- Todo の永続化スキーマ。
 -- ファイル名 Todo.sq から TodoQueries が生成され、database.todoQueries でアクセスする。
+--
+-- 既存のインストールを壊さないよう、変更するときは migrations/ に .sqm を足すこと。
+-- このファイルは常に「最新のスキーマ」を表す。
 CREATE TABLE todoEntity (
     id        INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     title     TEXT    NOT NULL,
     notes     TEXT    NOT NULL DEFAULT '',
     isDone    INTEGER AS kotlin.Boolean NOT NULL DEFAULT 0,
-    createdAt INTEGER NOT NULL
+    createdAt INTEGER NOT NULL,
+    -- 期限。未設定は NULL
+    dueAt     INTEGER,
+    -- Priority.storedValue。0 = 未設定。
+    -- kotlin.Int を指定すると ColumnAdapter が要るようになるため、SQLite 既定の Long のまま持つ。
+    priority  INTEGER NOT NULL DEFAULT 0
 );
 
 -- 未完了を上に、その中では新しい順に並べる
 CREATE INDEX todoEntity_sort ON todoEntity(isDone, createdAt);
 
+-- タグ名の実体。同じ名前を重複して持たないよう UNIQUE を付ける。
+CREATE TABLE tagEntity (
+    id   INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    name TEXT    NOT NULL UNIQUE
+);
+
+-- Todo とタグの対応（多対多）。
+-- 外部キー制約は付けていない。SQLite では PRAGMA foreign_keys を有効にしないと
+-- ON DELETE CASCADE が効かず、ドライバごとに設定が要るため、
+-- 参照の後始末はリポジトリ側でトランザクションを張って明示的に行う。
+CREATE TABLE todoTagEntity (
+    todoId INTEGER NOT NULL,
+    tagId  INTEGER NOT NULL,
+    PRIMARY KEY (todoId, tagId)
+);
+
+CREATE INDEX todoTagEntity_tagId ON todoTagEntity(tagId);
+
+-- 並び替えは種類が増えたため Kotlin 側（TodoSort）で行う。
+-- ここでは基準となる並び（未完了が先、作成が新しい順）だけを返す。
 selectAll:
 SELECT * FROM todoEntity ORDER BY isDone ASC, createdAt DESC;
 
 insert:
-INSERT INTO todoEntity(title, notes, isDone, createdAt)
-VALUES (?, ?, ?, ?);
+INSERT INTO todoEntity(title, notes, isDone, createdAt, dueAt, priority)
+VALUES (?, ?, ?, ?, ?, ?);
 
-updateContent:
-UPDATE todoEntity SET title = ?, notes = ? WHERE id = ?;
+updateDetails:
+UPDATE todoEntity SET title = ?, notes = ?, dueAt = ?, priority = ? WHERE id = ?;
 
 setDone:
 UPDATE todoEntity SET isDone = ? WHERE id = ?;
@@ -29,3 +57,39 @@ DELETE FROM todoEntity WHERE id = ?;
 
 deleteCompleted:
 DELETE FROM todoEntity WHERE isDone = :done;
+
+-- タグ ---------------------------------------------------------------
+
+-- 全 Todo のタグを 1 クエリで取り、Kotlin 側で todoId ごとにまとめる。
+-- Todo ごとに引くと件数分のクエリが出てしまうため。
+selectAllTagLinks:
+SELECT link.todoId AS todoId, tag.name AS name
+FROM todoTagEntity link
+JOIN tagEntity tag ON tag.id = link.tagId
+ORDER BY tag.name ASC;
+
+-- 入力補完に使うタグ名の一覧。
+selectAllTagNames:
+SELECT name FROM tagEntity ORDER BY name ASC;
+
+insertTag:
+INSERT OR IGNORE INTO tagEntity(name) VALUES (?);
+
+selectTagIdByName:
+SELECT id FROM tagEntity WHERE name = ?;
+
+insertTagLink:
+INSERT OR IGNORE INTO todoTagEntity(todoId, tagId) VALUES (?, ?);
+
+deleteTagLinksByTodo:
+DELETE FROM todoTagEntity WHERE todoId = ?;
+
+deleteTagLinksByTodos:
+DELETE FROM todoTagEntity WHERE todoId IN :ids;
+
+-- どの Todo からも参照されなくなったタグを片付ける。
+deleteUnusedTags:
+DELETE FROM tagEntity WHERE id NOT IN (SELECT tagId FROM todoTagEntity);
+
+selectCompletedIds:
+SELECT id FROM todoEntity WHERE isDone = 1;

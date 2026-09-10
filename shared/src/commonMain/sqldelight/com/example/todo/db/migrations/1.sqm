@@ -1,0 +1,19 @@
+-- スキーマ v1 -> v2
+-- 期限・優先度・タグを追加する。
+--
+-- 既存の行は期限なし・優先度なし・タグなしとして扱われる。
+ALTER TABLE todoEntity ADD COLUMN dueAt INTEGER;
+ALTER TABLE todoEntity ADD COLUMN priority INTEGER NOT NULL DEFAULT 0;
+
+CREATE TABLE tagEntity (
+    id   INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    name TEXT    NOT NULL UNIQUE
+);
+
+CREATE TABLE todoTagEntity (
+    todoId INTEGER NOT NULL,
+    tagId  INTEGER NOT NULL,
+    PRIMARY KEY (todoId, tagId)
+);
+
+CREATE INDEX todoTagEntity_tagId ON todoTagEntity(tagId);

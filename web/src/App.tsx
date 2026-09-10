@@ -1,11 +1,16 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   applyFilter,
   formatCreatedAt,
+  sortTodos,
   todoStore,
   type Filter,
+  type Sort,
   type Todo,
 } from './todoStore'
+import { TodoDetail } from './TodoDetail'
+import { TodoBadges } from './TodoBadges'
+import { useRoute } from './useRoute'
 
 const FILTERS: { value: Filter; label: string }[] = [
   { value: 'all', label: 'すべて' },
@@ -13,19 +18,59 @@ const FILTERS: { value: Filter; label: string }[] = [
   { value: 'completed', label: '完了' },
 ]
 
+const SORTS: { value: Sort; label: string }[] = [
+  { value: 'created', label: '作成順' },
+  { value: 'due', label: '期限順' },
+  { value: 'priority', label: '優先度順' },
+]
+
 export function App() {
   const [todos, setTodos] = useState<readonly Todo[]>([])
-  const [filter, setFilter] = useState<Filter>('all')
-  const [draft, setDraft] = useState('')
-  // 編集ダイアログの対象。null なら閉じている。
-  const [editing, setEditing] = useState<Todo | null>(null)
+  // 件数では「まだ届いていない」と「本当に 0 件」を区別できないので、received で持つ。
+  // これがないと、存在しない id の URL を直接開いたときに「読み込み中…」から進まない。
+  const [received, setReceived] = useState(false)
+  const { route, openDetail, backToList } = useRoute()
 
   // Kotlin 側の Flow を購読する。戻り値が解除関数なので、そのまま cleanup に渡せる。
-  useEffect(() => todoStore.subscribe(setTodos), [])
+  useEffect(
+    () =>
+      todoStore.subscribe((next) => {
+        setTodos(next)
+        setReceived(true)
+      }),
+    [],
+  )
 
-  const visible = useMemo(() => applyFilter(todos, filter), [todos, filter])
+  if (route.name === 'detail') {
+    return (
+      <TodoDetail
+        todo={todos.find((t) => t.id === route.id) ?? null}
+        isLoading={!received}
+        onBack={backToList}
+      />
+    )
+  }
+
+  return <TodoList todos={todos} onOpenDetail={openDetail} />
+}
+
+function TodoList({
+  todos,
+  onOpenDetail,
+}: {
+  todos: readonly Todo[]
+  onOpenDetail: (id: string) => void
+}) {
+  const [filter, setFilter] = useState<Filter>('all')
+  const [sort, setSort] = useState<Sort>('created')
+  const [draft, setDraft] = useState('')
+
+  const visible = useMemo(() => sortTodos(applyFilter(todos, filter), sort), [todos, filter, sort])
   const activeCount = todos.filter((t) => !t.isDone).length
   const completedCount = todos.length - activeCount
+
+  // 「期限切れ」の判定に使う。描画のたびに変えず、一覧を開いているあいだは固定する。
+  const now = useMemo(() => Date.now(), [])
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault()
@@ -52,7 +97,7 @@ export function App() {
         </button>
       </header>
 
-      <nav className="filters">
+      <nav className="filters" aria-label="絞り込み">
         {FILTERS.map(({ value, label }) => (
           <button
             key={value}
@@ -66,13 +111,33 @@ export function App() {
         ))}
       </nav>
 
+      <nav className="sorts" aria-label="並び順">
+        <span className="sorts-label">並び順</span>
+        {SORTS.map(({ value, label }) => (
+          <button
+            key={value}
+            type="button"
+            className={value === sort ? 'chip chip-selected' : 'chip'}
+            aria-pressed={value === sort}
+            onClick={() => setSort(value)}
+          >
+            {label}
+          </button>
+        ))}
+      </nav>
+
       <main className="list-area">
         {visible.length === 0 ? (
           <p className="empty">{emptyMessage(filter)}</p>
         ) : (
           <ul className="todo-list">
             {visible.map((todo) => (
-              <TodoRow key={todo.id} todo={todo} onEdit={() => setEditing(todo)} />
+              <TodoRow
+                key={todo.id}
+                todo={todo}
+                now={now}
+                onOpen={() => onOpenDetail(todo.id)}
+              />
             ))}
           </ul>
         )}
@@ -90,19 +155,11 @@ export function App() {
           追加
         </button>
       </form>
-
-      {editing && (
-        <EditTodoDialog
-          key={editing.id}
-          todo={editing}
-          onClose={() => setEditing(null)}
-        />
-      )}
     </div>
   )
 }
 
-function TodoRow({ todo, onEdit }: { todo: Todo; onEdit: () => void }) {
+function TodoRow({ todo, now, onOpen }: { todo: Todo; now: number; onOpen: () => void }) {
   return (
     <li className={todo.isDone ? 'todo todo-done' : 'todo'}>
       <input
@@ -112,17 +169,18 @@ function TodoRow({ todo, onEdit }: { todo: Todo; onEdit: () => void }) {
         aria-label={`${todo.title} を完了にする`}
       />
       {/* 本文は button で包まない。ここを押せるようにするとテキスト選択が効かなくなるため、
-          編集は右側の独立したボタンから開く。 */}
+          詳細は右側の独立したボタンから開く。 */}
       <div className="todo-body">
         <span className="todo-title">{todo.title}</span>
         {todo.notes !== '' && <span className="todo-notes">{todo.notes}</span>}
+        <TodoBadges todo={todo} now={now} />
         <time className="todo-date">{formatCreatedAt(todo.createdAt)}</time>
       </div>
       <button
         type="button"
         className="icon-button"
-        onClick={onEdit}
-        aria-label={`${todo.title} を編集`}
+        onClick={onOpen}
+        aria-label={`${todo.title} の詳細を開く`}
       >
         ✎
       </button>
@@ -135,62 +193,6 @@ function TodoRow({ todo, onEdit }: { todo: Todo; onEdit: () => void }) {
         ✕
       </button>
     </li>
-  )
-}
-
-/**
- * タイトルとメモを編集するモーダル。
- * Escape で閉じる・背景を操作させない・フォーカスを閉じ込める、は <dialog> に任せている。
- */
-function EditTodoDialog({ todo, onClose }: { todo: Todo; onClose: () => void }) {
-  const ref = useRef<HTMLDialogElement>(null)
-  const [title, setTitle] = useState(todo.title)
-  const [notes, setNotes] = useState(todo.notes)
-  const canSave = title.trim() !== ''
-
-  // StrictMode では effect が二度走る。開いている dialog に showModal() を呼ぶと
-  // 例外になるので、開いていないときだけ呼ぶ。
-  useEffect(() => {
-    if (!ref.current?.open) ref.current?.showModal()
-  }, [])
-
-  const save = async (event: React.FormEvent) => {
-    event.preventDefault()
-    const updated = await todoStore.updateContent(todo.id, title, notes)
-    if (updated) ref.current?.close()
-  }
-
-  return (
-    <dialog ref={ref} className="edit-dialog" onClose={onClose}>
-      <form className="edit-form" onSubmit={save}>
-        <h2>Todo を編集</h2>
-
-        <label className="field">
-          <span className="field-label">タイトル</span>
-          <input
-            type="text"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            aria-invalid={!canSave}
-            autoFocus
-          />
-        </label>
-
-        <label className="field">
-          <span className="field-label">メモ（任意）</span>
-          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} />
-        </label>
-
-        <div className="dialog-actions">
-          <button type="button" className="text-button" onClick={() => ref.current?.close()}>
-            キャンセル
-          </button>
-          <button type="submit" className="text-button" disabled={!canSave}>
-            保存
-          </button>
-        </div>
-      </form>
-    </dialog>
   )
 }
 
