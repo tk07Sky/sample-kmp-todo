@@ -1,0 +1,25 @@
+# Gradle
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# ローカル環境依存（コミットしない）
+local.properties
+.kotlin/
+
+# IDE
+.idea/
+*.iml
+.fleet/
+
+# macOS
+.DS_Store
+
+# Kotlin/JS・Wasm
+kotlin-js-store/
+node_modules/
+
+# Xcode
+iosApp/build/
+iosApp/*.xcodeproj/xcuserdata/
+iosApp/*.xcworkspace/xcuserdata/

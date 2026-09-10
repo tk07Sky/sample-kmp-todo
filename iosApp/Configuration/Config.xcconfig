@@ -1,0 +1,5 @@
+// Xcode プロジェクトから参照する設定値。
+// アプリ名やバンドル ID をここで一括変更できる。
+APP_NAME=Todo
+BUNDLE_ID=com.example.todo
+TEAM_ID=

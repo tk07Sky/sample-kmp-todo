@@ -1,0 +1,31 @@
+-- Todo の永続化スキーマ。
+-- ファイル名 Todo.sq から TodoQueries が生成され、database.todoQueries でアクセスする。
+CREATE TABLE todoEntity (
+    id        INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    title     TEXT    NOT NULL,
+    notes     TEXT    NOT NULL DEFAULT '',
+    isDone    INTEGER AS kotlin.Boolean NOT NULL DEFAULT 0,
+    createdAt INTEGER NOT NULL
+);
+
+-- 未完了を上に、その中では新しい順に並べる
+CREATE INDEX todoEntity_sort ON todoEntity(isDone, createdAt);
+
+selectAll:
+SELECT * FROM todoEntity ORDER BY isDone ASC, createdAt DESC;
+
+insert:
+INSERT INTO todoEntity(title, notes, isDone, createdAt)
+VALUES (?, ?, ?, ?);
+
+updateContent:
+UPDATE todoEntity SET title = ?, notes = ? WHERE id = ?;
+
+setDone:
+UPDATE todoEntity SET isDone = ? WHERE id = ?;
+
+deleteById:
+DELETE FROM todoEntity WHERE id = ?;
+
+deleteCompleted:
+DELETE FROM todoEntity WHERE isDone = :done;

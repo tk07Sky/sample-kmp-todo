@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- ダークモード時の起動フラッシュを防ぐため、暗い背景のテーマを当てる -->
+    <style name="Theme.App" parent="android:Theme.Material.NoActionBar">
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowBackground">#111412</item>
+    </style>
+</resources>

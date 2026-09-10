@@ -1,0 +1,8 @@
+# このプロジェクトのビルドツールチェーンを固定する。
+# `mise install` で導入され、ディレクトリに入ると自動で切り替わる。
+#
+# 注意: Android SDK は mise の管理対象外。
+# 別途 Android Studio か cmdline-tools で導入し、local.properties で場所を指定する。
+[tools]
+java = "temurin-21"   # Kotlin 2.4 / AGP 9 の要件は JDK 17 以上。LTS の 21 を使う
+gradle = "9.7.1"      # AGP 9 の要件は Gradle 9.1 以上

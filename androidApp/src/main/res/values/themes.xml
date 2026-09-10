@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Compose が描画するまでの間に見える素の Window テーマ。
+         アクションバーを消し、システムバーは透過させて edge-to-edge に合わせる。 -->
+    <style name="Theme.App" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowBackground">#FBFDF8</item>
+    </style>
+</resources>

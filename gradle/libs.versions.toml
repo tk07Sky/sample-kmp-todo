@@ -1,0 +1,47 @@
+# 依存バージョンの一元管理（Gradle Version Catalog）。
+# 2026-09 時点の安定版に固定している。
+[versions]
+agp = "9.4.0"
+kotlin = "2.4.20"
+composeMultiplatform = "1.12.0"
+sqldelight = "2.3.2"
+androidxLifecycle = "2.11.0"
+androidxActivityCompose = "1.13.0"
+coroutines = "1.11.0"
+kotlinxDatetime = "0.8.0"
+kotlinxSerialization = "1.11.0"
+kotlinxBrowser = "0.5.0"
+
+androidMinSdk = "24"
+androidTargetSdk = "37"
+androidCompileSdk = "37"
+
+[libraries]
+kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
+kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutines" }
+kotlinx-datetime = { module = "org.jetbrains.kotlinx:kotlinx-datetime", version.ref = "kotlinxDatetime" }
+kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinxSerialization" }
+
+kotlinx-browser = { module = "org.jetbrains.kotlinx:kotlinx-browser", version.ref = "kotlinxBrowser" }
+
+androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "androidxActivityCompose" }
+
+# Compose Multiplatform 版の lifecycle（org.jetbrains.androidx 名前空間）
+lifecycle-viewmodel-compose = { module = "org.jetbrains.androidx.lifecycle:lifecycle-viewmodel-compose", version.ref = "androidxLifecycle" }
+lifecycle-runtime-compose = { module = "org.jetbrains.androidx.lifecycle:lifecycle-runtime-compose", version.ref = "androidxLifecycle" }
+
+sqldelight-runtime = { module = "app.cash.sqldelight:runtime", version.ref = "sqldelight" }
+sqldelight-coroutines-extensions = { module = "app.cash.sqldelight:coroutines-extensions", version.ref = "sqldelight" }
+sqldelight-android-driver = { module = "app.cash.sqldelight:android-driver", version.ref = "sqldelight" }
+sqldelight-native-driver = { module = "app.cash.sqldelight:native-driver", version.ref = "sqldelight" }
+
+[plugins]
+androidApplication = { id = "com.android.application", version.ref = "agp" }
+# AGP 9 以降、com.android.application は KMP プラグインと同居できないため、
+# KMP 側の Android ターゲットにはこちらを使う。
+androidKotlinMultiplatformLibrary = { id = "com.android.kotlin.multiplatform.library", version.ref = "agp" }
+kotlinMultiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
+composeMultiplatform = { id = "org.jetbrains.compose", version.ref = "composeMultiplatform" }
+composeCompiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+kotlinSerialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
+sqldelight = { id = "app.cash.sqldelight", version.ref = "sqldelight" }
