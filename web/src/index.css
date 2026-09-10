@@ -218,3 +218,76 @@ body {
     opacity: 0.38;
     cursor: default;
 }
+
+/* 編集ダイアログ。表示・非表示と背景の暗転は <dialog> の機能に任せ、
+   ここでは見た目だけを整える。 */
+.edit-dialog {
+    width: min(440px, calc(100vw - 32px));
+    padding: 0;
+    border: none;
+    border-radius: 16px;
+    background: var(--surface-container);
+    color: var(--on-surface);
+}
+
+.edit-dialog::backdrop {
+    background: rgb(0 0 0 / 0.4);
+}
+
+.edit-form {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 24px;
+}
+
+.edit-form h2 {
+    margin: 0;
+    font-size: 1.25rem;
+    font-weight: 400;
+}
+
+.field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.field-label {
+    font-size: 0.75rem;
+    color: var(--on-surface-variant);
+}
+
+.field input,
+.field textarea {
+    padding: 10px 12px;
+    border: 1px solid var(--outline);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--on-surface);
+    font: inherit;
+    resize: vertical;
+}
+
+.field input:focus,
+.field textarea:focus {
+    outline: 2px solid var(--primary);
+    outline-offset: -2px;
+}
+
+/* タイトルは必須。空のあいだは枠でも分かるようにする。 */
+.field input[aria-invalid='true'] {
+    border-color: #b3261e;
+}
+
+@media (prefers-color-scheme: dark) {
+    .field input[aria-invalid='true'] {
+        border-color: #f2b8b5;
+    }
+}
+
+.dialog-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
